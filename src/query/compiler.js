@@ -1,13 +1,8 @@
 // Firebird Query Builder & Compiler
 import inherits from 'inherits';
-import QueryCompiler from "knex/lib/query/compiler";
+import QueryCompiler from "knex/lib/query/querycompiler";
 
-function QueryCompiler_Firebird(client, builder) {
-  QueryCompiler.call(this, client, builder);
-}
-inherits(QueryCompiler_Firebird, QueryCompiler);
-
-Object.assign(QueryCompiler_Firebird.prototype, {
+class QueryCompiler_Firebird extends QueryCompiler {
   // TODO probably buggy. test it
 
   // limit 5           -> rows 1 to 5   - or just rows 5
@@ -25,19 +20,19 @@ Object.assign(QueryCompiler_Firebird.prototype, {
       if (!offset) return [limit];
       return [offset + 1, offset + limit];
     }
-  },
+  }
 
   limit() {
     const rows = this._calcRows()[0];
     if (rows === undefined) return;
     return 'rows ' + this.formatter.parameter(rows);
-  },
+  }
 
   offset() {
     const to = this._calcRows()[1];
     if (to === undefined) return;
     return 'to ' + this.formatter.parameter(to);
-  },
+  }
 
   _prepInsert(insertValues) {
     const newValues = {};
@@ -48,7 +43,7 @@ Object.assign(QueryCompiler_Firebird.prototype, {
       }
     }
     return QueryCompiler.prototype._prepInsert.call(this, newValues);
-  },
+  }
   // Compiles a `columnInfo` query
   columnInfo() {
     const column = this.single.columnInfo;
@@ -93,11 +88,10 @@ Object.assign(QueryCompiler_Firebird.prototype, {
           },
           {}
         );
-        console.log('Resultado columnInfo', { out, column });
         return (column && out[column]) || out;
       },
     };
-  },
+  }
   whereIn(statement) {
     // O FB não suporta `in` de tupla para tupla; neste caso, monta um or
     if (Array.isArray(statement.column)) {
@@ -108,8 +102,7 @@ Object.assign(QueryCompiler_Firebird.prototype, {
     }
     return super.whereIn(statement);
   }
-
-});
+}
 
 export default QueryCompiler_Firebird;
 
