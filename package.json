@@ -4,8 +4,8 @@
   "description": "Knex dialect for FirebirdSQL RDBMS",
   "main": "lib/index.js",
   "scripts": {
-    "babel": "babel -L -D src/ --out-dir lib/ --source-maps=inline",
-    "test": "npm run babel && node test",
+    "babel": "babel src --out-dir lib",
+    "test": "npm run build && node test",
     "prepublishOnly": "npm run babel"
   },
   "repository": {
