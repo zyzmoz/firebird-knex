@@ -2,8 +2,7 @@
 // -------
 import Bluebird from 'bluebird';
 
-import inherits from 'inherits';
-import { isUndefined, map, defaults } from 'lodash';
+import { defaults } from 'lodash';
 import { promisify } from 'util';
 import assert from 'assert';
 import Client from 'knex/lib/client';
@@ -15,42 +14,36 @@ import TableCompiler from './schema/tablecompiler';
 import Transaction from './transaction';
 import SchemaCompiler from './schema/compiler';
 import Firebird_Formatter from './formatter';
+import Firebird_DDL from "./schema/ddl";
 
-
-
-
-function Client_Firebird(config) {
-  Client.call(this, config);
-}
-inherits(Client_Firebird, Client);
-
-Object.assign(Client_Firebird.prototype, {
-
-  dialect: 'firebird',
-
-  driverName: 'node-firebird',
-
+class Client_Firebird extends Client {
   _driver() {
     return require('node-firebird');
-  },
+  }
 
   schemaCompiler() {
     return new SchemaCompiler(this, ...arguments);
-  },
-  QueryCompiler,
+  }
+
+  queryCompiler(builder, formatter) {
+    return new QueryCompiler(this, builder, formatter);
+  }
 
   columnCompiler() {
     return new ColumnCompiler(this, ...arguments);
-  },
+  }
 
   tableCompiler() {
     return new TableCompiler(this, ...arguments);
-  },
-  Transaction,
+  }
+
+  transaction() {
+    return new Transaction(this, ...arguments);
+  }
 
   wrapIdentifierImpl(value) {
-    
-    if (value === '*') return value;   
+
+    if (value === '*') return value;
 
 
     if (!/^[A-Za-z0-9_]+$/.test(value)) {
@@ -59,7 +52,7 @@ Object.assign(Client_Firebird.prototype, {
       throw new Error(`Invalid identifier: "${value}"; Dialect 1 doesn't support special characters.`);
     }
     return value;
-  },
+  }
 
 
   // Get a raw connection from the database, returning a promise with the connection object.
@@ -71,14 +64,14 @@ Object.assign(Client_Firebird.prototype, {
         resolve(connection);
       });
     });
-  },
+  }
 
   // Used to explicitly close a connection, called internally by the pool when
   // a connection times out or the pool is shutdown.
   async destroyRawConnection(connection) {
     const close = promisify((cb) => connection.detach(cb));
     return close();
-  },
+  }
 
   // Runs the query on the specified connection, providing the bindings and any
   // other necessary prep work.
@@ -92,7 +85,6 @@ Object.assign(Client_Firebird.prototype, {
       };
 
       let { sql } = obj;
-      console.log('SQL', sql);
       if (!sql) return resolver();
       const c = connection._trasaction || connection;
       c.query(sql, obj.bindings, (error, rows, fields) => {
@@ -101,7 +93,7 @@ Object.assign(Client_Firebird.prototype, {
         resolver(obj);
       });
     });
-  },
+  }
 
   _stream(connection, sql, stream) {
     throw new Error('_stream not implemented');
@@ -120,7 +112,7 @@ Object.assign(Client_Firebird.prototype, {
     //       stream.end();
     //     });
     // });
-  },
+  }
 
   // Ensures the response is returned in the same format as other clients.
   processResponse(obj, runner) {
@@ -131,7 +123,7 @@ Object.assign(Client_Firebird.prototype, {
     const [rows, fields] = response;
     this._fixBufferStrings(rows, fields);
     return this._fixBlobCallbacks(rows, fields);
-  },
+  }
 
   _fixBufferStrings(rows, fields) {
     if (!rows) return rows;
@@ -141,7 +133,7 @@ Object.assign(Client_Firebird.prototype, {
         if (Buffer.isBuffer(value)) {
           for (const field of fields) {
             if (field.alias === cell &&
-              (field.type === 448 || field.type === 452)) { // SQLVarString                
+              (field.type === 448 || field.type === 452)) { // SQLVarString
               row[cell] = value.toString('latin1');
               break;
             }
@@ -149,13 +141,13 @@ Object.assign(Client_Firebird.prototype, {
         }
       }
     }
-  },
-  /**   
-  * The Firebird library returns BLOLs with callback functions; Those need to be loaded asynchronously
-  * @param {*} rows 
-  * @param {*} fields 
-  */
-  _fixBlobCallbacks(rows, fields) {    
+  }
+  /**
+   * The Firebird library returns BLOLs with callback functions; Those need to be loaded asynchronously
+   * @param {*} rows
+   * @param {*} fields
+   */
+  _fixBlobCallbacks(rows, fields) {
     if (!rows) return rows;
 
     const blobEntries = [];
@@ -163,7 +155,7 @@ Object.assign(Client_Firebird.prototype, {
     // Seek and verify if there is any BLOB
     for (const row of rows) {
       for (const cell in row) {
-        const value = row[cell];       
+        const value = row[cell];
         // ATSTODO: Está presumindo que o blob é texto; recomenda-se diferenciar texto de binário. Talvez o "fields" ajude?
         // Is it a callback BLOB?
         if (value instanceof Function) {
@@ -190,29 +182,29 @@ Object.assign(Client_Firebird.prototype, {
     }
     // Returns a Promise that wait BLOBs be loaded and retuns it
     return Promise.all(blobEntries).then(() => rows);
-  },
+  }
 
   poolDefaults() {
     return defaults(
       { min: 1, max: 1 },
-      Client.prototype.poolDefaults.call(this)
+      super.poolDefaults(this)
     );
-  },
+  }
 
   ping(resource, callback) {
     resource.query('select 1 from RDB$DATABASE', callback);
-  },
-  // ddl(compiler, pragma, connection) {
-  //   return new Firebird_DDL(this, compiler, pragma, connection);
-  // },
+  }
 
+  ddl(compiler, pragma, connection) {
+    return new Firebird_DDL(this, compiler, pragma, connection);
+  }
+}
 
-  
+Object.assign(Client_Firebird.prototype, {
+  dialect: 'firebird',
+  driverName: 'node-firebird',
+
   Firebird_Formatter
-  
 });
-
-Client_Firebird.dialect = 'firebird';
-
 
 export default Client_Firebird;

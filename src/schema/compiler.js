@@ -1,28 +1,18 @@
 // Firebird: Column Builder & Compiler
 // -------
-import inherits from 'inherits';
 import SchemaCompiler from 'knex/lib/schema/compiler';
 
 import { some } from 'lodash';
 
 // Schema Compiler
 // -------
-
-function SchemaCompiler_Firebird () {
-  SchemaCompiler.apply(this, arguments);
-}
-
-inherits(SchemaCompiler_Firebird, SchemaCompiler);
-
-Object.assign(SchemaCompiler_Firebird.prototype, {
+class SchemaCompiler_Firebird extends SchemaCompiler {
   // Compile the query to determine if a table exists.
-  hasTable(tableName){
-    const sql =
-      `select r.rdb$relation_name as "Table" ` +
-      `from rdb$relations r where ` +
-      ` r.rdb$relation_name = ${this.formatter.parameter(tableName)}`;
+  hasTable(tableName) {
+    const fullTableName = this.formatter.wrap(prefixedTableName(this.schema, String(tableName))).toUpperCase();
+    const sql = `select 1 from rdb$relations where rdb$relation_name = '${fullTableName}'`;
     this.pushQuery({ sql, output: (resp) => resp.length > 0 });
-  },
+  }
 
   // Compile the query to determine if a column exists.
   hasColumn(tableName, column){
@@ -41,14 +31,30 @@ Object.assign(SchemaCompiler_Firebird.prototype, {
       },
     });
   }
-});
-// Compile a rename table command.
-// SchemaCompiler_Firebird.prototype.renameTable = function(from, to) {
-//   this.pushQuery(
-//     `alter table ${this.formatter.wrap(from)} rename to ${this.formatter.wrap(
-//       to
-//     )}`
-//   );
-// };
+
+  dropTableIfExists(tableName) {
+    const fullTableName = this.formatter.wrap(prefixedTableName(this.schema, tableName)).toUpperCase();
+    const dropTableSql = this.dropTablePrefix + fullTableName;
+
+    this.pushQuery(`
+      EXECUTE BLOCK AS BEGIN
+      if (exists(select 1 from rdb$relations where rdb$relation_name = '${fullTableName}')) then
+      execute statement '${dropTableSql}';
+      END
+    `);
+
+    return this;
+  }
+
+  renameTable(tableName, to) {
+    throw new Error(
+      `${this.name} is not implemented for this dialect (http://www.firebirdfaq.org/faq363/).`
+    );
+  }
+}
+
+function prefixedTableName(prefix, table) {
+  return prefix ? `${prefix}.${table}` : table;
+}
 
 export default SchemaCompiler_Firebird;

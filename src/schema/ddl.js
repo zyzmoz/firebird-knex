@@ -1,10 +1,10 @@
 // Firebird_DDL
 //
-// 
+//
 // columns and changing datatypes.
 // -------
 
-import {  
+import {
   uniqueId,
   find,
   identity,
@@ -19,26 +19,26 @@ import {
 } from 'lodash';
 
 
-Firebird_DDL = (client, tableCompiler, pragma, connection) => {
-  this.client = client;
-  this.tableCompiler = tableCompiler;
-  this.pragma = pragma;
-  this.tableNameRaw = this.tableCompiler.tableNameRaw;
-  this.alteredName = uniqueId('_knex_temp_alter');
-  this.connection = connection;
-  this.formatter =
-    client && client.config && client.config.wrapIdentifier
-      ? client.config.wrapIdentifier
-      : (value) => value;
-}
+class Firebird_DDL {
+  constructor(client, tableCompiler, pragma, connection) {
+    this.client = client;
+    this.tableCompiler = tableCompiler;
+    this.pragma = pragma;
+    this.tableNameRaw = this.tableCompiler.tableNameRaw;
+    this.alteredName = uniqueId('_knex_temp_alter');
+    this.connection = connection;
+    this.formatter =
+      client && client.config && client.config.wrapIdentifier
+        ? client.config.wrapIdentifier
+        : (value) => value;
+  }
 
-Object.assign(Firebird_DDL.prototype, {
   tableName() {
     return this.formatter(this.tableNameRaw, (value) => value);
-  },
+  }
 
-  getColumn: async function(column) {
-    const currentCol = find(this.pragma, (col) => {      
+  async getColumn(column) {
+    const currentCol = find(this.pragma, (col) => {
       return (
         this.client.wrapIdentifier(col.name).toLowerCase() ===
         this.client.wrapIdentifier(column).toLowerCase()
@@ -49,7 +49,7 @@ Object.assign(Firebird_DDL.prototype, {
         `The column ${column} is not in the ${this.tableName()} table`
       );
     return currentCol;
-  },
+  }
 
   getTableSql() {
     this.trx.disableProcessing();
@@ -61,21 +61,21 @@ Object.assign(Firebird_DDL.prototype, {
         this.trx.enableProcessing();
         return result;
       });
-  },
+  }
 
-  renameTable: async function() {
+  async renameTable() {
     return this.trx.raw(
       `ALTER TABLE "${this.tableName()}" RENAME TO "${this.alteredName}"`
     );
-  },
+  }
 
   dropOriginal() {
     return this.trx.raw(`DROP TABLE "${this.tableName()}"`);
-  },
+  }
 
   dropTempTable() {
     return this.trx.raw(`DROP TABLE "${this.alteredName}"`);
-  },
+  }
 
   copyData() {
     return this.trx
@@ -83,7 +83,7 @@ Object.assign(Firebird_DDL.prototype, {
       .then((result) =>
         this.insertChunked(20, this.alteredName, identity, result)
       );
-  },
+  }
 
   reinsertData(iterator) {
     return this.trx
@@ -91,7 +91,7 @@ Object.assign(Firebird_DDL.prototype, {
       .then((result) =>
         this.insertChunked(20, this.tableName(), iterator, result)
       );
-  },
+  }
 
   async insertChunked(chunkSize, target, iterator, result) {
     iterator = iterator || identity;
@@ -102,13 +102,13 @@ Object.assign(Firebird_DDL.prototype, {
         .table(target)
         .insert(map(batch, iterator));
     }
-  },
+  }
 
   createTempTable(createTable) {
     return this.trx.raw(
       createTable.sql.replace(this.tableName(), this.alteredName)
     );
-  },
+  }
 
   _doReplace(sql, from, to) {
     const oneLineSql = sql.replace(/\s+/g, ' ');
@@ -154,7 +154,7 @@ Object.assign(Firebird_DDL.prototype, {
     args = args.map((item) => {
       let split = item.trim().split(' ');
 
-      
+
       const fromMatchCandidates = [
         new RegExp(`\`${fromIdentifier}\``, 'i'),
         new RegExp(`"${fromIdentifier}"`, 'i'),
@@ -243,10 +243,10 @@ Object.assign(Firebird_DDL.prototype, {
     return oneLineSql
       .replace(/\(.*\)/, () => `(${args.join(', ')})`)
       .replace(/,\s*([,)])/, '$1');
-  },
+  }
 
   // Boy, this is quite a method.
-  renameColumn: async function(from, to) {
+  async renameColumn(from, to) {
     return this.client.transaction(
       async (trx) => {
         this.trx = trx;
@@ -276,9 +276,9 @@ Object.assign(Firebird_DDL.prototype, {
       },
       { connection: this.connection }
     );
-  },
+  }
 
-  dropColumn: async function(columns) {
+  async dropColumn(columns) {
     return this.client.transaction(
       (trx) => {
         this.trx = trx;
@@ -306,7 +306,7 @@ Object.assign(Firebird_DDL.prototype, {
       },
       { connection: this.connection }
     );
-  },
+  }
 
   reinsertMapped(createTable, newSql, mapRow) {
     return Promise.resolve()
@@ -316,7 +316,7 @@ Object.assign(Firebird_DDL.prototype, {
       .then(() => this.trx.raw(newSql))
       .then(() => this.reinsertData(mapRow))
       .then(() => this.dropTempTable());
-  },
-});
+  }
+}
 
-module.exports = SQLite3_DDL;
+export default Firebird_DDL;

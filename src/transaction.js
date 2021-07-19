@@ -1,15 +1,9 @@
 import inherits from 'inherits';
 const debug = require('debug')('knex:tx');
-import Transaction from 'knex/lib/transaction';
+import Transaction from 'knex/lib/execution/transaction';
 
 
-function Transaction_Firebird () {
-  Transaction.apply(this, arguments);
-}
-inherits(Transaction_Firebird, Transaction);
-
-Object.assign(Transaction_Firebird.prototype, {
-
+class Transaction_Firebird extends Transaction {
   begin(conn) {
     return new Promise((resolve, reject) => {
       conn.transaction(this.client.driver.ISOLATION_READ_COMMITED, (error, transaction) => {
@@ -18,29 +12,29 @@ Object.assign(Transaction_Firebird.prototype, {
         resolve();
       });
     });
-  },
+  }
 
-  
+
 
   savepoint() {
     throw new Error('savepoints not implemented');
-  },
+  }
 
   commit(conn, value) {
     return this.query(conn, 'commit', 1, value);
-  },
+  }
 
   release() {
     throw new Error('releasing savepoints not implemented');
-  },
+  }
 
   rollback(conn, error) {
     return this.query(conn, 'rollback', 2, error);
-  },
+  }
 
   rollbackTo() {
     throw new Error('rolling back to savepoints not implemented');
-  },
+  }
 
   query(conn, method, status, value) {
     const q = new Promise((resolve, reject) => {
@@ -66,7 +60,6 @@ Object.assign(Transaction_Firebird.prototype, {
     }
     return q;
   }
-
-});
+}
 
 export default Transaction_Firebird;
